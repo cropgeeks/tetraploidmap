@@ -1,0 +1,5 @@
+These classes (the dialogs and monitoring threads) are all so similar they
+should really be rewritten with inheritance/polymorphism used to cut down on the
+number of lines of code.
+
+FortranRunner.java is the start of such coding...
