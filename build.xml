@@ -1,0 +1,39 @@
+<project name="TetraploidMap" default="jar" basedir=".">
+  <description>TetraploidMap for Windowws Ant Build Script</description>
+  
+  <property name="src" location="src"/>
+  <property name="classes" location="classes"/>
+  <property name="lib" location="lib"/>
+
+  <target name="init">
+    <mkdir dir="${classes}"/>
+  </target>
+
+  <target name="compile" depends="init" description="compile the source " >
+    <javac srcdir="${src}" destdir="${classes}">
+    	<classpath>
+	      <pathelement path="${classpath}"/>
+	      <fileset dir="${lib}">
+	        <include name="**/*.jar"/>
+	      </fileset>
+        </classpath>
+    </javac>
+  </target>
+
+
+	<target name="jar">
+		<delete file="${lib}/tetraploid.jar"/>
+		<jar jarfile="${lib}/tetraploid.jar">
+			<!-- JAR up the classes -->
+			<fileset dir="classes"/>
+			<!-- JAR up the resources -->
+			<zipfileset dir="res" prefix="res"/>
+			<!-- Create the manifest file -->
+			<manifest>
+				<attribute name="Main-Class" value="gui.TetraploidMap"/>
+				<attribute name="Class-Path" value="res jxl.jar jama.jar doe.jar pal.jar jcommon-1.0.0.jar jfreechart-1.0.1.jar"/>				
+			</manifest>
+		</jar>
+	</target>
+	
+</project>

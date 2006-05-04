@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Main-Class: classes.gui.TetraploidMap
+Class-Path: lib/jxl.jar lib/jama.jar lib/doe.jar lib/pal.jar lib/jcommon-0.8.8.jar lib/jfreechart-0.9.13.jar lib/winlaf-0.5.1.jar
+

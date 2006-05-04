@@ -1,0 +1,454 @@
+package gui.nav;
+
+import java.awt.*;
+import java.awt.event.*;
+import java.util.*;
+import javax.swing.*;
+import javax.swing.event.*;
+import javax.swing.tree.*;
+
+import data.*;
+import gui.*;
+import gui.map.*;
+
+public class NavPanel extends JPanel implements TreeSelectionListener
+{
+	private DefaultMutableTreeNode root = null;
+	private DefaultTreeModel model = null;
+	private JTree tree;
+	private JScrollPane sp;
+	
+	// Reference to the SplitsPane for assigning it panels
+	private AppFrame appFrame;
+	private JSplitPane splits;
+	private JPanel blankPanel;
+	private GradientPanel titlePanel;
+	
+	public NavPanel(AppFrame appFrame, JSplitPane splits)
+	{
+		this.appFrame = appFrame;
+		this.splits = splits;
+		
+		root = new DefaultMutableTreeNode("root");
+		model = new DefaultTreeModel(root);
+		
+		tree = new JTree(model);
+		tree.setRootVisible(false);
+		tree.addTreeSelectionListener(this);
+		tree.setCellRenderer(new NavPanelRenderer());
+		tree.getSelectionModel().setSelectionMode(
+			TreeSelectionModel.SINGLE_TREE_SELECTION);
+		
+		sp = new JScrollPane(tree);		
+		setLayout(new BorderLayout());
+		titlePanel = new GradientPanel("Datasets");
+		add(titlePanel, BorderLayout.NORTH);
+		add(sp);
+		
+		splits.setLeftComponent(this);
+		blankPanel = new JPanel();
+		blankPanel.setBackground(Color.white);
+		splits.setRightComponent(blankPanel);
+		splits.setDividerLocation(140);
+	}
+	
+	public void clear()
+	{
+		while (root.getChildCount() > 0)
+			model.removeNodeFromParent((MutableTreeNode)root.getChildAt(0));
+		titlePanel.setTitle("Datasets");
+		
+		int location = splits.getDividerLocation();
+		splits.setRightComponent(blankPanel);
+		splits.setDividerLocation(location);
+	}
+	
+	// Clears and updates the tree to display a recently opened Project file
+	public void displayProject(Project project)
+	{
+		clear();
+		
+		for (LinkageGroup lGroup: project.getLinkageGroups())
+			addRootLinkageGroup(lGroup);
+	}
+	
+	public void addRootLinkageGroup(LinkageGroup lGroup)
+	{		
+		// Create the nodes for the group's folder and its markers
+		DefaultMutableTreeNode dataNode =
+			new DefaultMutableTreeNode(lGroup.getName());
+		DefaultMutableTreeNode node = addMarkerGroup(dataNode, lGroup);
+
+		// Update the tree with the new node(s)
+		model.insertNodeInto(dataNode, root, root.getChildCount());
+		tree.setSelectionPath(new TreePath(node.getPath()));
+		tree.scrollPathToVisible(new TreePath(node.getPath()));
+		
+		titlePanel.setTitle("Datasets (" + root.getChildCount() + ")");
+    }
+    
+    private DefaultMutableTreeNode addMarkerGroup(DefaultMutableTreeNode parent, LinkageGroup lGroup)
+    {
+    	DefaultMutableTreeNode node = new DefaultMutableTreeNode(
+			new MarkersNode(lGroup.getMarkerCountString(), lGroup));
+		parent.add(node);
+		
+		// Add any result clusters/twopoint to it
+		for (Object obj: lGroup.getResults())
+		{
+			if (obj instanceof Cluster)
+				addCluster((Cluster)obj, parent);
+			else if (obj instanceof OrderedResult)
+				addOrderedResult((OrderedResult)obj, parent);
+		}
+		
+		return node;
+    }
+    
+    public void addCluster(Cluster cluster, DefaultMutableTreeNode parent)
+    {
+    	// What node should we add it to?
+    	if (parent == null)
+    		parent = (DefaultMutableTreeNode) getSelectedTreeNode().getParent();
+    	
+    	// Create a folder for it
+    	DefaultMutableTreeNode cFolder =
+    		new DefaultMutableTreeNode(cluster);
+    		
+    	// Add the summary and dendrogram nodes
+		cFolder.add(new DefaultMutableTreeNode(new SummaryNode(cluster.getSummary())));
+		cFolder.add(new DefaultMutableTreeNode(new DendrogramsNode(cluster)));
+		
+		// Then the individual linkage groups
+		for (LinkageGroup lGroup: cluster.getGroups())
+		{
+			DefaultMutableTreeNode gNode =
+				new DefaultMutableTreeNode(new GroupsNode(lGroup.getName(), lGroup.getMarkerCount()));
+			addMarkerGroup(gNode, lGroup);
+			cFolder.add(gNode);
+		}
+    	
+    	model.insertNodeInto(cFolder, parent, parent.getChildCount());
+    	tree.expandPath(new TreePath(cFolder.getPath()));
+    	tree.scrollPathToVisible(new TreePath(cFolder.getPath()));
+    }
+    
+    public void addOrderedResult(OrderedResult order, DefaultMutableTreeNode parent)
+    {
+    	// What node should we add it to?
+    	if (parent == null)
+    		parent = (DefaultMutableTreeNode) getSelectedTreeNode().getParent();
+    	
+    	// Create a folder for it
+    	DefaultMutableTreeNode oFolder =
+    		new DefaultMutableTreeNode(order);
+    	
+    	// Add the nodes
+		oFolder.add(new DefaultMutableTreeNode(new SummaryNode(order.getSummary())));
+		oFolder.add(new DefaultMutableTreeNode(new OrderedNode(order, this)));
+    	    	
+    	model.insertNodeInto(oFolder, parent, parent.getChildCount());
+    	tree.setSelectionPath(new TreePath(oFolder.getPath()));
+    	tree.scrollPathToVisible(new TreePath(oFolder.getPath()));
+    }
+
+	public void addLinkageMap(LinkageMapPanel panel)
+	{
+		DefaultMutableTreeNode parent =
+			(DefaultMutableTreeNode) getSelectedTreeNode().getParent();
+		
+		DefaultMutableTreeNode node =
+			new DefaultMutableTreeNode(new MapNode(panel));
+		
+		model.insertNodeInto(node, parent, parent.getChildCount());
+		tree.setSelectionPath(new TreePath(node.getPath()));
+    	tree.scrollPathToVisible(new TreePath(node.getPath()));
+	}
+    
+    // Called when auto-selection of markers has taken place. The correct table
+    // containing these markers must be retrieved and updated
+    public void markersUpdated()
+    {
+    	MarkersNode node = (MarkersNode) getSelectedTreeNode().getUserObject();
+//    	node.markerDetails.selectedMarkersChanged(node.lGroup);
+		appFrame.markerDetails.selectedMarkersChanged(node.lGroup);
+    }
+    
+    public void valueChanged(TreeSelectionEvent e)
+    {
+    	AppFrameMenuBar.setMenusForLinkageGroupSelected(false);
+    	
+    	DefaultMutableTreeNode n = (DefaultMutableTreeNode)
+    		tree.getLastSelectedPathComponent();
+
+		if (n == null) return;
+		
+		Object nodeInfo = n.getUserObject();
+		
+		int location = splits.getDividerLocation();
+		
+		if (nodeInfo instanceof MarkersNode)
+		{
+			MarkersNode node = (MarkersNode) nodeInfo;
+//			splits.setRightComponent(node.markerDetails);
+
+			// Copy the linkage group to the display table
+			appFrame.markerDetails.displayLinkageGroup(node.lGroup);
+			// Then make the table visible
+			splits.setRightComponent(appFrame.markerDetails);
+			
+			AppFrameMenuBar.setMenusForLinkageGroupSelected(true);
+		}
+		else if (nodeInfo instanceof GroupsNode)
+		{
+			GroupsNode node = (GroupsNode) nodeInfo;
+			splits.setRightComponent(node.getLabel());
+		}
+		else if (nodeInfo instanceof OrderedNode)
+		{
+			OrderedNode node = (OrderedNode) nodeInfo;
+			splits.setRightComponent(node.panel);
+		}
+		else if (nodeInfo instanceof DendrogramsNode)
+		{
+			DendrogramsNode node = (DendrogramsNode) nodeInfo;
+			splits.setRightComponent(node.panel);
+		}
+		else if (nodeInfo instanceof SummaryNode)
+		{
+			SummaryNode node = (SummaryNode) nodeInfo;
+			splits.setRightComponent(node.panel);
+		}
+		else if (nodeInfo instanceof MapNode)
+		{
+			MapNode node = (MapNode) nodeInfo;
+			splits.setRightComponent(node.panel);
+		}
+		else
+			splits.setRightComponent(new JLabel("" + n, JLabel.CENTER));
+		
+		// Can the user print now?
+		if (nodeInfo instanceof IPrintable && ((IPrintable)nodeInfo).isPrintable())
+			AppFrameMenuBar.aFilePrint.setEnabled(true);
+		else
+			AppFrameMenuBar.aFilePrint.setEnabled(false);
+					
+		splits.setDividerLocation(location);
+	}
+	
+	public LinkageGroup getSelectedLinkageGroup()
+	{
+		DefaultMutableTreeNode node = (DefaultMutableTreeNode)
+			tree.getSelectionModel().getSelectionPath().getLastPathComponent();
+		
+		Object obj = node.getUserObject();
+		if (obj instanceof MarkersNode)
+			return ((MarkersNode)obj).lGroup;
+		
+		return null;
+	}
+	
+	public String getSelectedLinkageGroupPathStr()
+	{
+		DefaultMutableTreeNode node = (DefaultMutableTreeNode)
+			tree.getSelectionModel().getSelectionPath().getLastPathComponent();
+		
+		String path = "";
+		TreeNode[] nodes = node.getPath();
+		for (int i = 1; i < nodes.length - 1; i++)
+		{
+			path += "" + nodes[i];
+			if (i != (nodes.length-2))
+				path += "->";
+		}
+			
+		return path;
+	}
+	
+	DefaultMutableTreeNode getSelectedTreeNode()
+	{
+		return (DefaultMutableTreeNode)
+			tree.getSelectionModel().getSelectionPath().getLastPathComponent();
+	}
+	
+	// This can only be called when NavPanel has allowed the aFilePrint action
+	// to be enabled, hence this method can ONLY return an IPrintable object
+	public IPrintable getSelectedPrintableNode()
+	{
+		DefaultMutableTreeNode node = getSelectedTreeNode();
+		return (IPrintable) node.getUserObject();			
+	}
+}
+	
+class MarkersNode
+{
+	String name;
+	LinkageGroup lGroup;
+//		MarkerDetails markerDetails;
+	
+	MarkersNode(String name, LinkageGroup lGroup)
+	{
+		this.name = name;
+		this.lGroup = lGroup;
+//			markerDetails = new MarkerDetails(lGroup);
+	}
+	
+	public String toString() { return name; }
+}
+
+class GroupsNode
+{
+	String name;
+	int markerCount;
+	
+	GroupsNode(String name, int markerCount)
+	{
+		this.name = name;
+		this.markerCount = markerCount;
+	}
+	
+	public String toString() { return name; }
+	
+	public JLabel getLabel()
+	{
+		return new JLabel(name + " (" + markerCount
+			+ " marker" + (markerCount == 1 ? "" : "s") + ")",
+			JLabel.CENTER);
+	}
+}
+
+class SummaryNode
+{
+	SummaryPanel panel;
+	
+	SummaryNode(Summary summary)
+	{
+		panel = new SummaryPanel(summary);
+	}
+	
+	public String toString() { return "Summary"; }
+}
+
+class DendrogramsNode implements IPrintable
+{
+	DendrogramsPanel panel;
+	
+	DendrogramsNode(Cluster cluster)
+	{
+		panel = new DendrogramsPanel(cluster);
+	}
+	
+	public String toString() { return "Dendrograms"; }
+	
+	public boolean isPrintable() { return true; }
+	
+	public void print() { panel.print(); }
+}
+
+class OrderedNode
+{
+	OrderedResult order;
+	OrderedResultPanel panel;
+	
+	OrderedNode(OrderedResult order, NavPanel navPanel)
+	{
+		this.order = order;
+		panel = new OrderedResultPanel(order, navPanel);
+	}
+	
+	public String toString() { return "Details"; }
+}
+
+class MapNode implements IPrintable
+{
+	LinkageMapPanel panel;
+	
+	MapNode(LinkageMapPanel panel)
+	{
+		this.panel = panel;
+	}
+	
+	public String toString() { return "Linkage Map"; }
+	
+	public boolean isPrintable() { return true; }
+	
+	public void print() { panel.print(); }
+}
+
+
+
+class NavPanelRenderer extends JLabel implements TreeCellRenderer
+{
+	private static Color bColor = UIManager.getColor("Tree.selectionBackground");
+	
+	private boolean selected = false;
+	
+	public Component getTreeCellRendererComponent(
+		JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus)
+	{
+		DefaultMutableTreeNode node = (DefaultMutableTreeNode) value;
+		Object obj = node.getUserObject();			
+		setText(obj.toString());
+		
+		if (obj instanceof MarkersNode)
+			setIcon(Icons.LINKAGE_GROUP);
+		else if (obj instanceof GroupsNode)
+		{
+			GroupsNode gNode = (GroupsNode) obj;
+			setText(gNode.name + " (" + gNode.markerCount + ")");
+			
+			if (expanded)
+				setIcon(Icons.GROUP_OPEN);
+			else
+				setIcon(Icons.GROUP_FOLDER);
+		}
+		else if (obj instanceof Cluster)
+		{
+			if (expanded)
+				setIcon(Icons.CLUSTER_OPEN);
+			else
+				setIcon(Icons.CLUSTER_FOLDER);
+		}
+		else if (obj instanceof SummaryNode)
+			setIcon(Icons.SUMMARY);
+		else if (obj instanceof OrderedNode)
+			setIcon(Icons.ORDER);
+		else if (obj instanceof DendrogramsNode)
+			setIcon(Icons.DENDROGRAM);
+		else if (obj instanceof MapNode)
+			setIcon(Icons.MAP);
+		
+		else if (expanded)
+			setIcon(Icons.FOLDER_OPEN);
+		else if (leaf)
+			setIcon(new DefaultTreeCellRenderer().getLeafIcon());
+		else
+			setIcon(Icons.FOLDER);
+		
+		this.selected = selected;
+		
+		if (selected)
+			setForeground((Color) UIManager.get("Tree.selectionForeground"));
+		else
+			setForeground((Color) UIManager.get("Tree.foreground"));
+		
+		return this;
+	}
+	
+	public void paintComponent(Graphics g)
+	{
+		Icon icon = getIcon();
+		
+		int offset = 0;
+		if (icon != null && getText() != null)
+			offset = (icon.getIconWidth() + getIconTextGap());
+		
+		if (selected)
+		{
+			g.setColor(bColor);
+			g.fillRect(offset, 0, 500 - offset, getHeight() - 1);
+		}
+		
+		super.paintComponent(g);
+	}
+}
