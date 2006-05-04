@@ -21,7 +21,7 @@
   </target>
 
 
-	<target name="jar">
+	<target name="jar" depends="compile">
 		<delete file="${lib}/tetraploid.jar"/>
 		<jar jarfile="${lib}/tetraploid.jar">
 			<!-- JAR up the classes -->
