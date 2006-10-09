@@ -122,6 +122,9 @@ class ProcessQTLResults extends Thread
 			for (int j = 0; j < 6; j++)
 				trait.modelScores[i][j] = Float.parseFloat(st.nextToken());
 			
+			// Read the extra column that was being ignored before
+			trait.modelScoresExtra[i][0] = Float.parseFloat(st.nextToken());
+			
 			line = in.readLine();
 		}
 		
