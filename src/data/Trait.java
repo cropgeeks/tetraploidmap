@@ -27,6 +27,7 @@ public class Trait implements Serializable
 	public String[] qtlEffects = new String[6];
 	public String[] qtlEffects2;
 	public float[][] modelScores = new float[10][6];
+	public float[][] modelScoresExtra = new float[10][1];
 
 	public String getName()
 		{ return name; }

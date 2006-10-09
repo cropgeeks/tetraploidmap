@@ -371,7 +371,7 @@ public class QTLResultsPanel extends JPanel implements ListSelectionListener
 			text.append("<STYLE type='text/css'>TD {text-align: right; font-family: courier; font-size: 11;}</STYLE></head>");
 			
 			text.append("<table cellspacing=2 cellpadding=0>");			
-			text.append("<tr><td align='left'><b>Model</td><td><b>sig</td><td><b>lod</td><td><b>mean_1</td><td><b>se_1</td><td><b>mean_2</td><td><b>se_2</td></tr>");
+			text.append("<tr><td align='left'><b>Model</td><td><b>sig</td><td><b>lod</td><td><b>R<sup>2</sup></b></td><td><b>mean_1</td><td><b>se_1</td><td><b>mean_2</td><td><b>se_2</td></tr>");
 			
 			for (int i = 0; i < 10; i++)
 			{
@@ -380,12 +380,17 @@ public class QTLResultsPanel extends JPanel implements ListSelectionListener
 				text.append("<tr><td align='left'>");
 				if (highlight) text.append("<b>");
 				text.append((i+1) + " " + getModel(i+1) + "</td>");
-				for (int j = 0; j < 6; j++)
+				for (int j = 0; j < 7; j++)
 				{
 					text.append("<td>&nbsp;&nbsp;");
 					if (highlight) text.append("<b><font color=\"##ff0000\">");
 					
-					text.append(Prefs.d3.format(trait.modelScores[i][j]) + "</td>");
+					if (j <= 5)
+						text.append(Prefs.d3.format(trait.modelScores[i][j]) + "</td>");
+					else if (trait.modelScoresExtra != null)
+						text.append(Prefs.d3.format(trait.modelScoresExtra[i][0]) + "</td>");
+					else
+						text.append("N/A</td>");
 				}
 				text.append("</tr>");
 			}
